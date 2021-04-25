@@ -43,7 +43,7 @@ namespace Rigel
             chart3.ChartAreas[0].AxisY.IsStartedFromZero = false;
             chart3.Legends[0].Enabled = false;
             chart3.ChartAreas[0].AxisX.LabelStyle.Angle = 45;
-            chart3.Titles.Add("Implied Yield Curve (% pa)");
+            chart3.Titles.Add("Implied Yield Curve & Forward Rates (% pa)");
 
             chart4.ChartAreas[0].InnerPlotPosition.Auto = true;
             chart4.ChartAreas[0].AxisY.IsStartedFromZero = false;
@@ -102,7 +102,7 @@ namespace Rigel
             List<Tuple<DateTime, double>[]> historicalFundingRates = null;
             if (updateHistoricalData)
             {
-                historicalPrices = await ss.GetMultipleHistoricalMarketsAsync(selectedContracts, 5 * 60, DateTime.Now.AddDays(-5), DateTime.Now);
+                historicalPrices = await ss.GetMultipleHistoricalMarketsAsync(selectedContracts, 5 * 60, DateTime.Now.AddDays(-int.Parse(textBox3.Text)), DateTime.Now);
                 if (selectedContracts.Count == historicalPrices.Count)
                     historicalFundingRates = ss.GetHistoricalFundingRates(selectedContracts, historicalPrices);
             }
@@ -124,6 +124,10 @@ namespace Rigel
 
             int i = 0;
             double prevYF = 0, prevRate = 0;
+            List<Tuple<string, DateTime, double>> dataForChart1 = new List<Tuple<string, DateTime, double>>();
+            List<Tuple<string, DateTime, double>> dataForChart2 = new List<Tuple<string, DateTime, double>>();
+            List<Tuple<string, string, double>> dataForChart3_implied = new List<Tuple<string, string, double>>();
+            List<Tuple<string, string, double>> dataForChart3_forward = new List<Tuple<string, string, double>>();
             foreach (var s in selectedContracts)
             {
                 if (updateHistoricalData && historicalPrices != null & historicalFundingRates != null)
@@ -132,7 +136,8 @@ namespace Rigel
                     AddManyDataPoints(chart2, s, historicalFundingRates[i], false);
                 }
 
-                AddDataPoint(chart1, markets.Item1, s, markets.Item2[i].last, false);
+                dataForChart1.Add(new Tuple<string, DateTime, double>(s, markets.Item1, markets.Item2[i].last));
+
                 if (i > 0)
                 {
                     double fundingRate = 0;
@@ -141,13 +146,14 @@ namespace Rigel
                     else
                         fundingRate = ss.futures[s].ImpliedFundingRate(markets.Item2[0].last, markets.Item1) * 100;
 
-                    AddDataPoint(chart2, markets.Item1, s, fundingRate, false);
+
+                    dataForChart2.Add(new Tuple<string, DateTime, double>(s, markets.Item1, fundingRate));
 
                     double yf = ss.futures[s].YearFraction(markets.Item1);
                     double forwardRate = (fundingRate * yf - prevRate * prevYF) / (yf - prevYF);
 
-                    AddDataPoint(chart3, s + "(" + Math.Round(yf, 2) + "y)", "Forward Rate", forwardRate, true);
-                    AddDataPoint(chart3, s  + "(" + Math.Round(yf, 2) + "y)", "Implied Rate", fundingRate, false);
+                    dataForChart3_forward.Add(new Tuple<string, string, double>("Forward Rate", s + "(" + Math.Round(yf, 2) + "y)", forwardRate));
+                    dataForChart3_implied.Add(new Tuple<string, string, double>("Implied Rate", s + "(" + Math.Round(yf, 2) + "y)", fundingRate));
 
                     prevYF = yf;
                     prevRate = fundingRate;
@@ -160,6 +166,11 @@ namespace Rigel
 
                 i++;
             }
+
+            AddManyDataPoints(chart1, dataForChart1, false);
+            AddManyDataPoints(chart2, dataForChart2, false);
+            AddManyDataPoints(chart3, dataForChart3_implied, false);
+            AddManyDataPoints(chart3, dataForChart3_forward, true);
 
             if (historicalFundingRates != null)
                 updateHistoricalData = false;
@@ -177,85 +188,67 @@ namespace Rigel
 
             var sorted = (from s in ss.fundingRates
                           orderby s.Value descending
-                          select s).Take(20);
+                          select s).Take(10);
 
-            int i = 0;
+            List<Tuple<string, string, double>> data = new List<Tuple<string, string, double>>(10);
             foreach (var s in sorted)
-            {
-                AddDataPoint(chart4, s.Key, "Token", s.Value * 24 * 365.25 * 100, i < 3 ? true : false);
-                i++;
-            }
+                data.Add(new Tuple<string, string, double>("Token", s.Key, s.Value * 24 * 365.25 * 100));
+
+            AddManyDataPoints(chart4, data, true);
         }
 
-        private static void AddDataPoint<T>(Chart chart, T xValue, string seriesName, double yValue, bool isPoint)
-        {
-            chart.Invoke(new MethodInvoker(delegate
-            {
-                if (chart.Series.FindByName(seriesName) == null)
-                {
-                    Series ss = chart.Series.Add(seriesName);
-                    ss.ChartArea = chart.ChartAreas[0].Name;
-
-                    if (typeof(T) == typeof(DateTime))
-                        ss.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
-                    ss.MarkerStyle = MarkerStyle.Circle;
-                    ss.ToolTip = seriesName + ": (#VALY2, #VALX)";
-
-                    if (isPoint)
-                    {
-                        ss.ChartType = SeriesChartType.Column;
-                    }
-                    else
-                    {
-                        ss.ChartType = SeriesChartType.Line;
-                    }
-                }
-
-                DataPoint pp = new DataPoint();
-                if (isPoint)
-                {
-                    pp.Label = "#VALY";
-                }
-
-                pp.SetValueXY(xValue, Math.Round(yValue,2));
-
-                chart.Series[seriesName].Points.Add(pp);
-            }));
-        }
-
+        // Add many points to a single series in one go
         private static void AddManyDataPoints(Chart chart, string seriesName, IEnumerable<Tuple<DateTime,double>> data, bool isPoint)
         {
+            int n = data.Count();
+            List<Tuple<string, DateTime, double>> newData = new List<Tuple<string, DateTime, double>>(n);
+            int i = 0;
+            foreach (var d in data)
+            {
+                newData.Add(new Tuple<string, DateTime, double>(seriesName, d.Item1, d.Item2));
+                i++;
+            }
+
+            AddManyDataPoints(chart, newData, isPoint);
+        }
+
+        // Add many points to different series in one go
+        private static void AddManyDataPoints<T>(Chart chart, IEnumerable<Tuple<string, T, double>> data, bool isPoint)
+        {
             chart.Invoke(new MethodInvoker(delegate
             {
-                if (chart.Series.FindByName(seriesName) == null)
-                {
-                    Series ss = chart.Series.Add(seriesName);
-                    ss.ChartArea = chart.ChartAreas[0].Name;
-
-                    ss.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
-                    ss.MarkerStyle = MarkerStyle.Circle;
-                    ss.ToolTip = seriesName + ": (#VALY2, #VALX)";
-
-                    if (isPoint)
-                    {
-                        ss.ChartType = SeriesChartType.Column;
-                    }
-                    else
-                    {
-                        ss.ChartType = SeriesChartType.Line;
-                    }
-                }
-
                 foreach (var d in data)
                 {
+                    if (chart.Series.FindByName(d.Item1) == null)
+                    {
+                        Series ss = chart.Series.Add(d.Item1);
+                        ss.ChartArea = chart.ChartAreas[0].Name;
+
+                        if (typeof(T) == typeof(DateTime))
+                            ss.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
+
+                        ss.MarkerStyle = MarkerStyle.Circle;
+                        ss.ToolTip = d.Item1 + ": (#VALY2, #VALX)";
+
+                        if (isPoint)
+                        {
+                            ss.ChartType = SeriesChartType.Column;
+                        }
+                        else
+                        {
+                            ss.ChartType = SeriesChartType.Line;
+                        }
+                    }
+
+
                     DataPoint pp = new DataPoint();
                     if (isPoint)
                     {
                         pp.Label = "#VALY";
                     }
 
-                    pp.SetValueXY(d.Item1, Math.Round(d.Item2, 2));
-                    chart.Series[seriesName].Points.Add(pp);
+                    pp.SetValueXY(d.Item2, Math.Round(d.Item3, 2));
+                    chart.Series[d.Item1].Points.Add(pp);
                 }
             }));
         }
