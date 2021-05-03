@@ -90,8 +90,8 @@ namespace Rigel
 
             updateHistoricalData = true;
 
-            tt = new System.Threading.Timer(new System.Threading.TimerCallback(UpdatePriceCharts), null, 0, 5 * 60 * 1000);
-            tt2 = new System.Threading.Timer(new System.Threading.TimerCallback(UpdateFundingRates), null, 0, 5 * 60 * 1000);
+            tt = new System.Threading.Timer(new System.Threading.TimerCallback(UpdatePriceCharts), null, 0, int.Parse(textBox4.Text) * 1000);
+            tt2 = new System.Threading.Timer(new System.Threading.TimerCallback(UpdateFundingRates), null, 0, int.Parse(textBox4.Text) * 1000);
         }
 
         private async void UpdatePriceCharts (object state)
@@ -102,7 +102,7 @@ namespace Rigel
             List<Tuple<DateTime, double>[]> historicalFundingRates = null;
             if (updateHistoricalData)
             {
-                historicalPrices = await ss.GetMultipleHistoricalMarketsAsync(selectedContracts, 5 * 60, DateTime.Now.AddDays(-int.Parse(textBox3.Text)), DateTime.Now);
+                historicalPrices = await ss.GetMultipleHistoricalMarketsAsync(selectedContracts, 60 * 60, DateTime.Now.AddDays(-int.Parse(textBox3.Text)), DateTime.Now);
                 if (selectedContracts.Count == historicalPrices.Count)
                     historicalFundingRates = ss.GetHistoricalFundingRates(selectedContracts, historicalPrices);
             }
@@ -132,8 +132,8 @@ namespace Rigel
             {
                 if (updateHistoricalData && historicalPrices != null & historicalFundingRates != null)
                 {
-                    AddManyDataPoints(chart1, s, historicalPrices[i], false);
-                    AddManyDataPoints(chart2, s, historicalFundingRates[i], false);
+                    AddManyDataPoints(chart1, s, historicalPrices[i], false, false);
+                    AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false);
                 }
 
                 dataForChart1.Add(new Tuple<string, DateTime, double>(s, markets.Item1, markets.Item2[i].last));
@@ -167,10 +167,10 @@ namespace Rigel
                 i++;
             }
 
-            AddManyDataPoints(chart1, dataForChart1, false);
-            AddManyDataPoints(chart2, dataForChart2, false);
-            AddManyDataPoints(chart3, dataForChart3_implied, false);
-            AddManyDataPoints(chart3, dataForChart3_forward, true);
+            AddManyDataPoints(chart1, dataForChart1, false, true);
+            AddManyDataPoints(chart2, dataForChart2, false, true);
+            AddManyDataPoints(chart3, dataForChart3_forward, true, false);
+            AddManyDataPoints(chart3, dataForChart3_implied, false, true);
 
             if (historicalFundingRates != null)
                 updateHistoricalData = false;
@@ -194,11 +194,11 @@ namespace Rigel
             foreach (var s in sorted)
                 data.Add(new Tuple<string, string, double>("Token", s.Key, s.Value * 24 * 365.25 * 100));
 
-            AddManyDataPoints(chart4, data, true);
+            AddManyDataPoints(chart4, data, true, false);
         }
 
         // Add many points to a single series in one go
-        private static void AddManyDataPoints(Chart chart, string seriesName, IEnumerable<Tuple<DateTime,double>> data, bool isPoint)
+        private static void AddManyDataPoints(Chart chart, string seriesName, IEnumerable<Tuple<DateTime,double>> data, bool isPoint, bool useMarker)
         {
             int n = data.Count();
             List<Tuple<string, DateTime, double>> newData = new List<Tuple<string, DateTime, double>>(n);
@@ -209,11 +209,11 @@ namespace Rigel
                 i++;
             }
 
-            AddManyDataPoints(chart, newData, isPoint);
+            AddManyDataPoints(chart, newData, isPoint, useMarker);
         }
 
         // Add many points to different series in one go
-        private static void AddManyDataPoints<T>(Chart chart, IEnumerable<Tuple<string, T, double>> data, bool isPoint)
+        private static void AddManyDataPoints<T>(Chart chart, IEnumerable<Tuple<string, T, double>> data, bool isPoint, bool useMarker)
         {
             chart.Invoke(new MethodInvoker(delegate
             {
@@ -227,7 +227,7 @@ namespace Rigel
                         if (typeof(T) == typeof(DateTime))
                             ss.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
 
-                        ss.MarkerStyle = MarkerStyle.Circle;
+                        //ss.MarkerStyle = MarkerStyle.Circle;
                         ss.ToolTip = d.Item1 + ": (#VALY2, #VALX)";
 
                         if (isPoint)
@@ -246,6 +246,9 @@ namespace Rigel
                     {
                         pp.Label = "#VALY";
                     }
+
+                    if (useMarker)
+                        pp.MarkerStyle = MarkerStyle.Circle;
 
                     pp.SetValueXY(d.Item2, Math.Round(d.Item3, 2));
                     chart.Series[d.Item1].Points.Add(pp);
