@@ -68,6 +68,7 @@ namespace Rigel
             try
             {
                 listBox1.DataSource = ss.futures.Where(x => x.Value.underlying == comboBox1.Text).Select(x => x.Value.name).ToList();
+                this.Text = "Rigel : " + comboBox1.Text;
             }
             catch (Exception ex)
             {

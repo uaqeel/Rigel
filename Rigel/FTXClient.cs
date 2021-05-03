@@ -148,6 +148,7 @@ namespace Rigel
             }
         }
 
+        // TODO -- perp funding rates: https://ftx.com/api/funding_rates?future=BTC-PERP
         public List<Tuple<DateTime, double>[]> GetHistoricalFundingRates(List<string> selectedContracts, List<Tuple<DateTime, double>[]> historicalPrices)
         {
             int n = historicalPrices[0].Length;
