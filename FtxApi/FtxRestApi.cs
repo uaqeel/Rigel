@@ -82,6 +82,15 @@ namespace FtxApi
             return ParseResponce(result);
         }
 
+        public async Task<dynamic> GetFundingRatesAsync(string future, DateTime start, DateTime end)
+        {
+            var resultString = $"api/funding_rates?future={future}&start_time={Util.Util.GetSecondsFromEpochStart(start)}&end_time={Util.Util.GetSecondsFromEpochStart(end)}";
+
+            var result = await CallAsync(HttpMethod.Get, resultString);
+
+            return ParseResponce(result);
+        }
+
         public async Task<dynamic> GetFundingRatesAsync()
         {
             var resultString = $"api/funding_rates";

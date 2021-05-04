@@ -56,7 +56,7 @@ namespace Rigel
                 futures.Add(ff.name, ff);
             }
 
-            UpdateFundingRates();
+            UpdateFundingRatesAsync();
         }
 
         internal async Task<Tuple<DateTime, Market[]>> GetMultipleMarketsAsync(List<string> selectedContracts)
@@ -134,7 +134,7 @@ namespace Rigel
 
         }
 
-        public async Task UpdateFundingRates()
+        public async Task UpdateFundingRatesAsync()
         {
             var results = await restApi.GetFundingRatesAsync();
 
@@ -148,8 +148,7 @@ namespace Rigel
             }
         }
 
-        // TODO -- perp funding rates: https://ftx.com/api/funding_rates?future=BTC-PERP
-        public List<Tuple<DateTime, double>[]> GetHistoricalFundingRates(List<string> selectedContracts, List<Tuple<DateTime, double>[]> historicalPrices)
+        public async Task<List<Tuple<DateTime, double>[]>> GetHistoricalFundingRatesAsync(List<string> selectedContracts, List<Tuple<DateTime, double>[]> historicalPrices)
         {
             int n = historicalPrices[0].Length;
             int x = 0;
@@ -157,10 +156,23 @@ namespace Rigel
             foreach (var s in selectedContracts)
             {
                 Tuple<DateTime, double>[] ret2;
-                if (x == 0 || futures[s].isPerpetual)
+                if (x == 0)
                 {
                     ret2 = new Tuple<DateTime, double>[0];
-                    ret.Add(ret2);
+                }
+                else if (futures[s].isPerpetual)
+                {
+                    var results = await restApi.GetFundingRatesAsync(s, historicalPrices[0][0].Item1, historicalPrices[0].Last().Item1);
+
+                    List<Tuple<DateTime, double>> tempRet = new List<Tuple<DateTime, double>>();
+                    var fundingRates = JObject.Parse(results.ToString());
+                    foreach (var f in fundingRates["result"].Values<JObject>())
+                    {
+                        tempRet.Add(new Tuple<DateTime, double>(DateTime.Parse(f["time"].ToString()), 100 * 24 * 365.25 * (double)f["rate"]));
+                    }
+
+                    tempRet.Reverse();
+                    ret2 = tempRet.ToArray();
                 }
                 else
                 {
@@ -172,12 +184,10 @@ namespace Rigel
                         double impliedRate = 100 * Utils.ImpliedFundingRate(spot, historicalPrices[x][i].Item2, historicalPrices[x][i].Item1, futures[s].expiry);
 
                         ret2[i] = new Tuple<DateTime, double>(historicalPrices[x][i].Item1, impliedRate);
-
                     }
-
-                    ret.Add(ret2);
                 }
 
+                ret.Add(ret2);
                 x++;
             }
 

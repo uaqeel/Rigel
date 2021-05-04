@@ -37,6 +37,8 @@ namespace Rigel
             chart2.Legends[0].Docking = Docking.Top;
             chart2.ChartAreas[0].AxisX.LabelStyle.Format = "dd-MMM HH:mm:ss";
             chart2.ChartAreas[0].AxisX.LabelStyle.Angle = 45;
+            chart2.ChartAreas[0].AxisY2.Enabled = AxisEnabled.True;
+            chart2.ChartAreas[0].AxisY2.MajorGrid.Enabled = false;
             chart2.Titles.Add("Implied Yields (% pa)");
 
             chart3.ChartAreas[0].InnerPlotPosition.Auto = true;
@@ -69,6 +71,8 @@ namespace Rigel
             {
                 listBox1.DataSource = ss.futures.Where(x => x.Value.underlying == comboBox1.Text).Select(x => x.Value.name).ToList();
                 this.Text = "Rigel : " + comboBox1.Text;
+
+                updateHistoricalData = true;
             }
             catch (Exception ex)
             {
@@ -95,7 +99,7 @@ namespace Rigel
             tt2 = new System.Threading.Timer(new System.Threading.TimerCallback(UpdateFundingRates), null, 0, int.Parse(textBox4.Text) * 1000);
         }
 
-        private async void UpdatePriceCharts (object state)
+        private async void UpdatePriceCharts(object state)
         {
             Tuple<DateTime, Market[]> markets = await ss.GetMultipleMarketsAsync(selectedContracts);
 
@@ -105,7 +109,7 @@ namespace Rigel
             {
                 historicalPrices = await ss.GetMultipleHistoricalMarketsAsync(selectedContracts, 60 * 60, DateTime.Now.AddDays(-int.Parse(textBox3.Text)), DateTime.Now);
                 if (selectedContracts.Count == historicalPrices.Count)
-                    historicalFundingRates = ss.GetHistoricalFundingRates(selectedContracts, historicalPrices);
+                    historicalFundingRates = await ss.GetHistoricalFundingRatesAsync(selectedContracts, historicalPrices);
             }
 
             // Just in case changes have been made while retrieving markets.
@@ -162,7 +166,7 @@ namespace Rigel
 
                 label4.Invoke(new MethodInvoker(delegate
                 {
-                    label4.Text += s + ":".PadRight(10-Math.Min(10, s.Length)) + markets.Item2[i].bid + "  /  " + markets.Item2[i].ask + Environment.NewLine;
+                    label4.Text += s + ":".PadRight(10 - Math.Min(10, s.Length)) + markets.Item2[i].bid + "  /  " + markets.Item2[i].ask + Environment.NewLine;
                 }));
 
                 i++;
@@ -185,7 +189,7 @@ namespace Rigel
                     s.Points.Clear();
             }));
 
-            await ss.UpdateFundingRates();
+            await ss.UpdateFundingRatesAsync();
 
             var sorted = (from s in ss.fundingRates
                           orderby s.Value descending
@@ -239,6 +243,9 @@ namespace Rigel
                         {
                             ss.ChartType = SeriesChartType.Line;
                         }
+
+                        if (d.Item1.Contains("PERP"))
+                            ss.YAxisType = AxisType.Secondary;
                     }
 
 
