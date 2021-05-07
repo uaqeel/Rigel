@@ -129,19 +129,19 @@ namespace Rigel
 
             int i = 0;
             double prevYF = 0, prevRate = 0;
-            List<Tuple<string, DateTime, double>> dataForChart1 = new List<Tuple<string, DateTime, double>>();
-            List<Tuple<string, DateTime, double>> dataForChart2 = new List<Tuple<string, DateTime, double>>();
-            List<Tuple<string, string, double>> dataForChart3_implied = new List<Tuple<string, string, double>>();
-            List<Tuple<string, string, double>> dataForChart3_forward = new List<Tuple<string, string, double>>();
+            List<Tuple<string, DateTime, double, bool>> dataForChart1 = new List<Tuple<string, DateTime, double, bool>>();
+            List<Tuple<string, DateTime, double, bool>> dataForChart2 = new List<Tuple<string, DateTime, double, bool>>();
+            List<Tuple<string, string, double, bool>> dataForChart3_implied = new List<Tuple<string, string, double, bool>>();
+            List<Tuple<string, string, double, bool>> dataForChart3_forward = new List<Tuple<string, string, double, bool>>();
             foreach (var s in selectedContracts)
             {
                 if (updateHistoricalData && historicalPrices != null & historicalFundingRates != null)
                 {
-                    AddManyDataPoints(chart1, s, historicalPrices[i], false, false);
-                    AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false);
+                    AddManyDataPoints(chart1, s, historicalPrices[i], false, false, false);
+                    AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false, (i > 0 ? ss.futures[s].isPerpetual : false));
                 }
 
-                dataForChart1.Add(new Tuple<string, DateTime, double>(s, markets.Item1, markets.Item2[i].last));
+                dataForChart1.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, markets.Item2[i].last, false));
 
                 if (i > 0)
                 {
@@ -152,13 +152,13 @@ namespace Rigel
                         fundingRate = ss.futures[s].ImpliedFundingRate(markets.Item2[0].last, markets.Item1) * 100;
 
 
-                    dataForChart2.Add(new Tuple<string, DateTime, double>(s, markets.Item1, fundingRate));
+                    dataForChart2.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, fundingRate, ss.futures[s].isPerpetual));
 
                     double yf = ss.futures[s].YearFraction(markets.Item1);
                     double forwardRate = (fundingRate * yf - prevRate * prevYF) / (yf - prevYF);
 
-                    dataForChart3_forward.Add(new Tuple<string, string, double>("Forward Rate", s + "(" + Math.Round(yf, 2) + "y)", forwardRate));
-                    dataForChart3_implied.Add(new Tuple<string, string, double>("Implied Rate", s + "(" + Math.Round(yf, 2) + "y)", fundingRate));
+                    dataForChart3_forward.Add(new Tuple<string, string, double, bool>("Forward Rate", s + "(" + Math.Round(yf, 2) + "y)", forwardRate, false));
+                    dataForChart3_implied.Add(new Tuple<string, string, double, bool>("Implied Rate", s + "(" + Math.Round(yf, 2) + "y)", fundingRate, false));
 
                     prevYF = yf;
                     prevRate = fundingRate;
@@ -195,22 +195,22 @@ namespace Rigel
                           orderby s.Value descending
                           select s).Take(10);
 
-            List<Tuple<string, string, double>> data = new List<Tuple<string, string, double>>(10);
+            List<Tuple<string, string, double, bool>> data = new List<Tuple<string, string, double, bool>>(10);
             foreach (var s in sorted)
-                data.Add(new Tuple<string, string, double>("Token", s.Key, s.Value * 24 * 365.25 * 100));
+                data.Add(new Tuple<string, string, double, bool>("Token", s.Key, s.Value * 24 * 365.25 * 100, false));
 
             AddManyDataPoints(chart4, data, true, false);
         }
 
         // Add many points to a single series in one go
-        private static void AddManyDataPoints(Chart chart, string seriesName, IEnumerable<Tuple<DateTime,double>> data, bool isPoint, bool useMarker)
+        private static void AddManyDataPoints(Chart chart, string seriesName, IEnumerable<Tuple<DateTime,double>> data, bool isPoint, bool useMarker, bool useY2)
         {
             int n = data.Count();
-            List<Tuple<string, DateTime, double>> newData = new List<Tuple<string, DateTime, double>>(n);
+            List<Tuple<string, DateTime, double, bool>> newData = new List<Tuple<string, DateTime, double, bool>>(n);
             int i = 0;
             foreach (var d in data)
             {
-                newData.Add(new Tuple<string, DateTime, double>(seriesName, d.Item1, d.Item2));
+                newData.Add(new Tuple<string, DateTime, double, bool>(seriesName, d.Item1, d.Item2, useY2));
                 i++;
             }
 
@@ -218,7 +218,7 @@ namespace Rigel
         }
 
         // Add many points to different series in one go
-        private static void AddManyDataPoints<T>(Chart chart, IEnumerable<Tuple<string, T, double>> data, bool isPoint, bool useMarker)
+        private static void AddManyDataPoints<T>(Chart chart, IEnumerable<Tuple<string, T, double, bool>> data, bool isPoint, bool useMarker)
         {
             chart.Invoke(new MethodInvoker(delegate
             {
@@ -244,7 +244,7 @@ namespace Rigel
                             ss.ChartType = SeriesChartType.Line;
                         }
 
-                        if (d.Item1.Contains("PERP"))
+                        if (d.Item4)
                             ss.YAxisType = AxisType.Secondary;
                     }
 
