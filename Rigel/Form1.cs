@@ -54,6 +54,17 @@ namespace Rigel
             chart4.ChartAreas[0].AxisX.Interval = 1;
             chart4.Titles.Add("Highest Yielding Tokens (% pa)");
 
+            chart5.ChartAreas[0].InnerPlotPosition.Auto = true;
+            chart5.ChartAreas[0].AxisY.IsStartedFromZero = false;
+            chart5.Legends[0].Docking = Docking.Top;
+            chart5.ChartAreas[0].AxisX.LabelStyle.Format = "dd-MMM HH:mm:ss";
+            chart5.ChartAreas[0].AxisX.LabelStyle.Angle = 45;
+            chart5.ChartAreas[0].AxisY2.Enabled = AxisEnabled.True;
+            chart5.ChartAreas[0].AxisY2.IsStartedFromZero = false;
+            chart5.ChartAreas[0].AxisY2.MajorGrid.Enabled = false;
+            chart5.Titles.Add("Accrued interest on Perpetual Future (% pa)");
+
+
             selectedContracts = new List<string>();
         }
 
@@ -92,6 +103,7 @@ namespace Rigel
             chart2.Series.Clear();
             chart3.Series.Clear();
             chart4.Series.Clear();
+            chart5.Series.Clear();
 
             updateHistoricalData = true;
 
@@ -133,6 +145,7 @@ namespace Rigel
             List<Tuple<string, DateTime, double, bool>> dataForChart2 = new List<Tuple<string, DateTime, double, bool>>();
             List<Tuple<string, string, double, bool>> dataForChart3_implied = new List<Tuple<string, string, double, bool>>();
             List<Tuple<string, string, double, bool>> dataForChart3_forward = new List<Tuple<string, string, double, bool>>();
+            List<Tuple<string, DateTime, double, bool>> dataForChart5 = new List<Tuple<string, DateTime, double, bool>>(10);
             foreach (var s in selectedContracts)
             {
                 if (updateHistoricalData && historicalPrices != null & historicalFundingRates != null)
@@ -141,7 +154,7 @@ namespace Rigel
                     AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false, (i > 0 ? ss.futures[s].isPerpetual : false));
                 }
 
-                dataForChart1.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, markets.Item2[i].last, false));
+                dataForChart1.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, Math.Round(markets.Item2[i].last), false));
 
                 if (i > 0)
                 {
@@ -152,13 +165,23 @@ namespace Rigel
                         fundingRate = ss.futures[s].ImpliedFundingRate(markets.Item2[0].last, markets.Item1) * 100;
 
 
-                    dataForChart2.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, fundingRate, ss.futures[s].isPerpetual));
+                    dataForChart2.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, Math.Round(fundingRate, 2), ss.futures[s].isPerpetual));
 
                     double yf = ss.futures[s].YearFraction(markets.Item1);
                     double forwardRate = (fundingRate * yf - prevRate * prevYF) / (yf - prevYF);
 
-                    dataForChart3_forward.Add(new Tuple<string, string, double, bool>("Forward Rate", s + "(" + Math.Round(yf, 2) + "y)", forwardRate, false));
-                    dataForChart3_implied.Add(new Tuple<string, string, double, bool>("Implied Rate", s + "(" + Math.Round(yf, 2) + "y)", fundingRate, false));
+                    dataForChart3_forward.Add(new Tuple<string, string, double, bool>("Forward Rate", s + "(" + Math.Round(yf, 2) + "y)", Math.Round(forwardRate, 2), false));
+                    dataForChart3_implied.Add(new Tuple<string, string, double, bool>("Implied Rate", s + "(" + Math.Round(yf, 2) + "y)", Math.Round(fundingRate, 2), false));
+
+                    if (ss.futures[s].isPerpetual) {
+                        double previousLevel = (chart5.Series.Count == 2 ? chart5.Series[1].Points.Last().YValues[0] : 1);
+                        DateTime previousTimestamp = (chart5.Series.Count == 2 ? DateTime.FromOADate(chart5.Series[1].Points.Last().XValue) : markets.Item1);
+                        double dx = (markets.Item1 - previousTimestamp).TotalDays / 365.25;
+                        double newLevel = previousLevel * (1 + fundingRate / 100 * dx);
+
+                        dataForChart5.Add(new Tuple<string, DateTime, double, bool>("Funding Rate", markets.Item1, Math.Round(fundingRate, 2), false));
+                        dataForChart5.Add(new Tuple<string, DateTime, double, bool>("Accrued Index", markets.Item1, newLevel, true)); // don't round this off.
+                    }
 
                     prevYF = yf;
                     prevRate = fundingRate;
@@ -176,6 +199,7 @@ namespace Rigel
             AddManyDataPoints(chart2, dataForChart2, false, true);
             AddManyDataPoints(chart3, dataForChart3_forward, true, false);
             AddManyDataPoints(chart3, dataForChart3_implied, false, true);
+            AddManyDataPoints(chart5, dataForChart5, false, false);
 
             if (historicalFundingRates != null)
                 updateHistoricalData = false;
@@ -197,7 +221,7 @@ namespace Rigel
 
             List<Tuple<string, string, double, bool>> data = new List<Tuple<string, string, double, bool>>(10);
             foreach (var s in sorted)
-                data.Add(new Tuple<string, string, double, bool>("Token", s.Key, s.Value * 24 * 365.25 * 100, false));
+                data.Add(new Tuple<string, string, double, bool>("Token", s.Key, Math.Round(s.Value * 24 * 365.25 * 100, 2), false));
 
             AddManyDataPoints(chart4, data, true, false);
         }
@@ -258,7 +282,7 @@ namespace Rigel
                     if (useMarker)
                         pp.MarkerStyle = MarkerStyle.Circle;
 
-                    pp.SetValueXY(d.Item2, Math.Round(d.Item3, 2));
+                    pp.SetValueXY(d.Item2, d.Item3);
                     chart.Series[d.Item1].Points.Add(pp);
                 }
             }));
