@@ -151,7 +151,14 @@ namespace Rigel
                 if (updateHistoricalData && historicalPrices != null & historicalFundingRates != null)
                 {
                     AddManyDataPoints(chart1, s, historicalPrices[i], false, false, false);
-                    AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false, (i > 0 ? ss.futures[s].isPerpetual : false));
+                    if (i > 0)
+                    {
+                        AddManyDataPoints(chart2, s + (ss.futures[s].isPerpetual ? " (RHS)" : ""), historicalFundingRates[i], false, false, ss.futures[s].isPerpetual);
+                    }
+                    else
+                    {
+                        AddManyDataPoints(chart2, s, historicalFundingRates[i], false, false, false);
+                    }
                 }
 
                 dataForChart1.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, Math.Round(markets.Item2[i].last), false));
@@ -165,7 +172,7 @@ namespace Rigel
                         fundingRate = ss.futures[s].ImpliedFundingRate(markets.Item2[0].last, markets.Item1) * 100;
 
 
-                    dataForChart2.Add(new Tuple<string, DateTime, double, bool>(s, markets.Item1, Math.Round(fundingRate, 2), ss.futures[s].isPerpetual));
+                    dataForChart2.Add(new Tuple<string, DateTime, double, bool>(s + (ss.futures[s].isPerpetual ? " (RHS)" : ""), markets.Item1, Math.Round(fundingRate, 2), ss.futures[s].isPerpetual));
 
                     double yf = ss.futures[s].YearFraction(markets.Item1);
                     double forwardRate = (fundingRate * yf - prevRate * prevYF) / (yf - prevYF);
@@ -180,7 +187,7 @@ namespace Rigel
                         double newLevel = previousLevel * (1 + fundingRate / 100 * dx);
 
                         dataForChart5.Add(new Tuple<string, DateTime, double, bool>("Funding Rate", markets.Item1, Math.Round(fundingRate, 2), false));
-                        dataForChart5.Add(new Tuple<string, DateTime, double, bool>("Accrued Index", markets.Item1, newLevel, true)); // don't round this off.
+                        dataForChart5.Add(new Tuple<string, DateTime, double, bool>("Accrued Index (RHS)", markets.Item1, newLevel, true)); // don't round this off.
                     }
 
                     prevYF = yf;
