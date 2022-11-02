@@ -241,6 +241,8 @@ namespace Rigel
             int i = 0;
             foreach (var d in data)
             {
+                if (d == null) break;
+
                 newData.Add(new Tuple<string, DateTime, double, bool>(seriesName, d.Item1, d.Item2, useY2));
                 i++;
             }

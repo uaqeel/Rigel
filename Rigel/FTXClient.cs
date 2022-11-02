@@ -89,6 +89,9 @@ namespace Rigel
             var response = await restApi.GetSingleMarketsAsync(ss);
             JObject results = JObject.Parse(response.ToString())["result"];
 
+            if (results == null)
+                return new Market(0, 0, 0);
+
             double bid = Double.Parse(results["bid"].ToString());
             double ask = Double.Parse(results["ask"].ToString());
             double last = Double.Parse(results["last"].ToString());
@@ -122,16 +125,25 @@ namespace Rigel
             var response = await restApi.GetHistoricalPricesAsync(ss, resolutionInSecs, 10000, startDate, endDate);
             JArray results = JObject.Parse(response.ToString())["result"];
 
-            Tuple<DateTime, double>[] ret = new Tuple<DateTime, double>[results.Count];
-            int i = 0;
-            foreach (var r in results)
+            Tuple<DateTime, double>[] ret;
+            if (results == null)
             {
-                ret[i] = new Tuple<DateTime, double>(DateTime.Parse(r["startTime"].ToString()), Double.Parse(r["open"].ToString()));
-                i++;
+                ret = new Tuple<DateTime, double>[0];
+                return ret;
             }
+            else
+            {
+                ret = new Tuple<DateTime, double>[results.Count];
 
-            return ret;
+                int i = 0;
+                foreach (var r in results)
+                {
+                    ret[i] = new Tuple<DateTime, double>(DateTime.Parse(r["startTime"].ToString()), Double.Parse(r["open"].ToString()));
+                    i++;
+                }
 
+                return ret;
+            }
         }
 
         public async Task UpdateFundingRatesAsync()
@@ -178,7 +190,7 @@ namespace Rigel
                 {
                     ret2 = new Tuple<DateTime, double>[n];
 
-                    for (int i = 0; i < n; i++)
+                    for (int i = 0; i < historicalPrices[x].Length; i++)
                     {
                         double spot = historicalPrices[0][i].Item2;
                         double impliedRate = 100 * Utils.ImpliedFundingRate(spot, historicalPrices[x][i].Item2, historicalPrices[x][i].Item1, futures[s].expiry);
